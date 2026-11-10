@@ -3,7 +3,7 @@
 Các thuật toán DSA và RSA được cài bằng Python, gồm lũy thừa modulo, Euclid mở rộng, Miller–Rabin, sinh tham số, ký và xác minh.
 PyCryptodome chỉ dùng trong test để kiểm tra chéo tính đúng. `pow()` có sẵn của Python được dùng làm mốc tham chiếu, kiểm tra kết quả và tăng tốc sinh tham số/khóa; đường ký/xác minh mặc định dùng `modexp` tự cài.
 
-Giải thích về ý tưởng, công thức, từng file, từng hàm, cách đo và kết quả nằm trong [GIAI_THICH.md](GIAI_THICH.md).
+Giải thích về ý tưởng, công thức, từng file, từng hàm, cách đo và kết quả nằm trong [EXPLAIN.md](EXPLAIN.md).
 
 ## Chạy nhanh
 
