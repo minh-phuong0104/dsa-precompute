@@ -12,14 +12,16 @@ REPEATS = 5
 def measure(fn, budget_s=3.0, max_iter=1000, min_iter=40, warmup=None, repeats=REPEATS):
     t0 = time.perf_counter_ns()
     fn()
-    one = (time.perf_counter_ns() - t0) / 1e9
-    M = int(min(max_iter, max(min_iter, budget_s / max(one, 1e-7))))
+    one_call_seconds = (time.perf_counter_ns() - t0) / 1e9
+    estimated_iters = budget_s / max(one_call_seconds, 1e-7)
+    estimated_iters = max(min_iter, estimated_iters)
+    iters_per_round = int(min(max_iter, estimated_iters))
     warm = warmup if warmup is not None else min(50, M)
     for _ in range(warm):
         fn()
     samples, rep_medians = [], []
     for _ in range(repeats):
-        rs = []
+        round_times = []
         for _ in range(M):
             a = time.perf_counter_ns()
             fn()
