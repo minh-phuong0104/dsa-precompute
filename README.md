@@ -1,21 +1,35 @@
 # Tối ưu hóa hiệu năng ký số DSA bằng tiền tính toán — đánh giá thực nghiệm với RSA
 
-Toàn bộ DSA và RSA được tự cài bằng Python thuần (lũy thừa modulo, Euclid mở rộng, Miller–Rabin, sinh tham số, ký/xác minh).
-PyCryptodome chỉ dùng trong test để kiểm tra chéo tính đúng; `pow()` có sẵn của Python chỉ dùng làm mốc tham chiếu.
+Các thuật toán DSA và RSA được cài bằng Python, gồm lũy thừa modulo, Euclid mở rộng, Miller–Rabin, sinh tham số, ký và xác minh.
+PyCryptodome chỉ dùng trong test để kiểm tra chéo tính đúng. `pow()` có sẵn của Python được dùng làm mốc tham chiếu, kiểm tra kết quả và tăng tốc sinh tham số/khóa; đường ký/xác minh mặc định dùng `modexp` tự cài.
 
-Giải thích đầy đủ về ý tưởng, công thức, từng file, từng hàm, cách đo và kết quả nằm trong **GIAI_THICH.md**.
+Giải thích về ý tưởng, công thức, từng file, từng hàm, cách đo và kết quả nằm trong [GIAI_THICH.md](GIAI_THICH.md).
 
 ## Chạy nhanh
 
 ```bash
-pip install -r requirements.txt
-python3 main.py test      # 11 test (~50 s)
-python3 main.py demo      # demo; thêm --level 3072 cho mức 3072
-python3 main.py bench     # E1–E5 (~20 phút); chạy riêng: python3 main.py bench e1 e3
-python3 main.py plots     # vẽ lại biểu đồ vào bench/plots/
-python3 main.py params    # sinh lại tham số -> core/params.json (~20 s)
-python3 main.py all       # test -> demo -> bench -> plots
+git clone https://github.com/minh-phuong0104/dsa-precompute.git
+cd dsa-precompute
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python main.py test
+python main.py demo
 ```
+
+Trên Windows, kích hoạt môi trường bằng `.venv\Scripts\activate` (cmd) hoặc `.venv\Scripts\Activate.ps1` (PowerShell).
+
+| Lệnh | Chức năng |
+| --- | --- |
+| `python main.py test` | Chạy 11 test, gồm kiểm tra chéo PyCryptodome |
+| `python main.py demo --level 3072` | Demo mức 3072; mặc định là 2048 |
+| `python main.py bench` | Chạy E1–E5, ghi kết quả vào `bench/results/` |
+| `python main.py bench e1 e3` | Chỉ chạy E1 và E3 |
+| `python main.py plots` | Vẽ lại 5 biểu đồ trong `bench/plots/` từ CSV có sẵn |
+| `python main.py params` | Sinh lại tham số và khóa, ghi đè `core/params.json` |
+| `python main.py all` | Chạy lần lượt test → demo → bench → plots |
+
+Repo đã có `core/params.json`, nên không cần chạy `params` trước khi test/demo. Thời gian chạy phụ thuộc cấu hình máy; benchmark đầy đủ có thể mất hàng chục phút. Benchmark ghi đè các CSV tương ứng và `env.json`; sau khi đổi tham số/khóa, cần chạy lại benchmark và biểu đồ để có kết quả tương ứng.
 
 Bằng Docker:
 
@@ -24,17 +38,17 @@ docker build -t dsa-precompute .
 docker run --rm dsa-precompute demo
 ```
 
-Yêu cầu Python ≥ 3.8. Mọi lệnh chạy từ thư mục gốc của repo.
+Yêu cầu Python ≥ 3.8. Mọi lệnh chạy từ thư mục gốc của repo. Docker dùng Python 3.12; muốn giữ kết quả mới trên máy host, gắn thư mục `bench/results/` và `bench/plots/` vào container.
 
 ## Các biến thể
 
 | Mã | Biến thể | File |
 | --- | --- | --- |
 | V0 | DSA baseline: k ngẫu nhiên, g^k bằng square-and-multiply, k⁻¹ bằng Euclid | `dsa/dsa.py` (`BaselineSigner`) |
-| V1 | Pool tiền tính toán (k, k⁻¹, r), lấp bằng cách của V0 | `dsa/pool.py`, `PoolSigner` |
-| V2 | Fixed-base windowing cho g^k | `dsa/fixed_base.py` (`FixedBaseWindow`) |
-| V3 | Comb Lim–Lee cho g^k | `dsa/fixed_base.py` (`CombLimLee`) |
-| V4 | Pool lấp bằng comb/window + nghịch đảo hàng loạt (Montgomery trick) | `dsa/pool.py` (`batch_inverse=True`) |
+| V1 | Pool tiền tính toán (k, k⁻¹, r), lấp bằng cách của V0 | `dsa/dsa.py` (`PoolSigner`), `dsa/pool.py` (`PrecomputePool`) |
+| V2 | Fixed-base windowing cho g^k | `dsa/dsa.py` (`FixedBaseSigner`), `dsa/fixed_base.py` (`FixedBaseWindow`) |
+| V3 | Comb Lim–Lee cho g^k | `dsa/dsa.py` (`FixedBaseSigner`), `dsa/fixed_base.py` (`CombLimLee`) |
+| V4 | Pool lấp bằng comb/window + nghịch đảo hàng loạt (Montgomery trick) | `dsa/dsa.py` (`PoolSigner`, `batch_inverse=True`), `dsa/pool.py` |
 | R0 | RSA PKCS#1 v1.5 (SHA-256), số mũ đầy đủ | `rsa/rsa.py` |
 | R1 | RSA-CRT (Garner) | `rsa/rsa.py` (`crt=True`) |
 
@@ -53,4 +67,5 @@ demo/    demo_cli.py
 
 - `core/params.json` chứa khóa **thử nghiệm** dùng chung cho benchmark, không dùng cho mục đích thật.
 - Python không chạy constant-time: kết quả chỉ nói về hiệu năng, không nói về khả năng chống side-channel.
-- FIPS 186-5 (2023) không còn chấp thuận DSA để tạo chữ ký mới; kỹ thuật tiền tính toán ở đây áp dụng y nguyên cho ECDSA/Schnorr.
+- Theo [FIPS 186-5](https://doi.org/10.6028/NIST.FIPS.186-5), DSA chỉ được giữ lại để xác minh chữ ký đã có, không tạo chữ ký mới.
+- Ý tưởng bảng fixed-base có thể chuyển sang phép nhân điểm của ECDSA/Schnorr. Pool nonce cần thiết kế riêng theo từng lược đồ; không áp dụng nguyên xi cho ECDSA tất định ([RFC 6979](https://www.rfc-editor.org/rfc/rfc6979.html#section-3.2)) hoặc EdDSA ([RFC 8032](https://www.rfc-editor.org/rfc/rfc8032.html#section-5.1.6)), vì nonce phụ thuộc thông điệp.

@@ -122,7 +122,7 @@ def e3():
                 )
         ax.axhline(ref, color=GREY, ls="--", lw=1)
         ax.text(
-            ax.get_xlim()[1] if False else 1.2,
+            1.2,
             ref * 1.05,
             f"square-and-multiply tự cài: {ref:,.0f} µs",
             fontsize=7.5,

@@ -39,11 +39,12 @@ Hầu hết chi phí nằm ở `g^k mod p`, và phần này tính được **tr�
 | Làm phép tính rẻ hơn | g cố định nên lập bảng lũy thừa của g một lần, sau đó tra bảng | V2 (window), V3 (comb) |
 | Kết hợp | Lấp pool bằng bảng fixed-base + nghịch đảo hàng loạt | V4 |
 
-RSA được dùng làm mốc so sánh (R0, R1). RSA không áp dụng được tiền tính toán, vì số mũ bí mật d tác động trực tiếp lên thông điệp: `s = m^d mod n`.
+RSA được dùng làm mốc so sánh (R0, R1). Pool bộ (k, k⁻¹, r) của DSA không áp dụng trực tiếp cho RSA, vì `s = m^d mod n` phụ thuộc thông điệp. RSA-CRT vẫn tính trước các tham số `dp`, `dq`, `qinv` để dùng lại khi ký.
 
-Toàn bộ DSA và RSA đều tự cài bằng Python thuần. Thư viện ngoài chỉ được dùng ở hai chỗ:
+Các thuật toán DSA và RSA được cài bằng Python. Các công cụ hỗ trợ gồm:
 - **PyCryptodome:** chỉ dùng trong test, để kiểm tra chéo rằng chữ ký của nhóm đúng chuẩn.
-- **`pow()` có sẵn của Python** (viết bằng C): dùng làm mốc tham chiếu khi đo, và để sinh tham số cho nhanh.
+- **`pow()` có sẵn của Python** (viết bằng C): dùng làm mốc tham chiếu, kiểm tra kết quả và tăng tốc sinh tham số/khóa.
+- **Matplotlib:** vẽ biểu đồ từ CSV; không tham gia thuật toán ký/xác minh.
 
 ---
 
@@ -73,7 +74,7 @@ dsa-precompute/
 │   ├── harness.py       hàm đo chung, ghi CSV, ghi thông tin máy
 │   ├── run_all.py       5 thí nghiệm E1–E5
 │   ├── plots.py         vẽ biểu đồ
-│   ├── results/         CSV kết quả, env.json, run_log.txt
+│   ├── results/         CSV kết quả, env.json
 │   └── plots/           5 biểu đồ PNG
 └── demo/
     └── demo_cli.py      demo trên dòng lệnh
@@ -82,14 +83,16 @@ dsa-precompute/
 ### Cách chạy
 
 ```bash
-pip install -r requirements.txt
-python3 main.py test      # 11 test, khoảng 50 giây
-python3 main.py demo      # demo, thêm: python3 main.py demo --level 3072
-python3 main.py bench     # E1–E5, khoảng 20 phút; chạy riêng: python3 main.py bench e1 e3
-python3 main.py plots     # vẽ lại biểu đồ từ CSV
-python3 main.py params    # sinh lại tham số và khóa (khoảng 20 giây)
-python3 main.py all       # test → demo → bench → plots
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python main.py test
+python main.py demo
+python main.py bench
+python main.py plots
 ```
+
+Các tùy chọn chạy từng thí nghiệm, demo mức 3072 và lệnh `all` nằm trong [README.md](README.md). Thời gian chạy phụ thuộc máy. Repo đã có khóa thử nghiệm; `python main.py params` sinh lại và ghi đè khóa, nên chỉ chạy khi cần rồi đo lại benchmark và vẽ lại biểu đồ.
 
 Với Docker:
 
@@ -125,7 +128,7 @@ với mỗi bit b của exp (từ bit cao nhất đến bit thấp nhất):
 | DSA ký | k, 224 bit | ≈ 336 |
 | DSA xác minh | u₁ và u₂, mỗi số 224 bit | ≈ 672 |
 | RSA ký R0 | d, 2048 bit | ≈ 3072 |
-| RSA xác minh | e = 65537, 17 bit | ≈ 18 |
+| RSA xác minh | e = 65537, 17 bit, 2 bit bằng 1 | 19 trong `modexp` hiện tại |
 
 Bảng này giải thích trước hai kết quả đo: DSA ký nhanh hơn RSA ký (số mũ ngắn hơn khoảng 9 lần), còn RSA xác minh nhanh hơn DSA xác minh (e rất nhỏ).
 
@@ -158,7 +161,7 @@ Bước 3, đi ngược từ i = n về 2:
 
 Bước 3 đúng vì `cᵢ⁻¹ · cᵢ₋₁ = (cᵢ₋₁·aᵢ)⁻¹ · cᵢ₋₁ = aᵢ⁻¹`.
 
-Chi phí: 1 lần Euclid cộng 3(n − 1) phép nhân.
+Chi phí lý tưởng: 1 lần Euclid cộng 3(n − 1) phép nhân. Cài đặt hiện tại khởi tạo `acc = 1` rồi nhân cả phần tử đầu, nên với n > 0 thực hiện 3n − 2 phép nhân modulo; n = 0 trả về danh sách rỗng.
 
 **Ví dụ** mod 11, với các số 7, 3, 5:
 
@@ -237,7 +240,7 @@ Xác minh:    kiểm tra 0 < r < q và 0 < s < q
 
 ### 4.3 Ví dụ tính tay
 
-Tham số: p = 23, q = 11 (11 chia hết 22), h = 2 nên g = 2² = 4. Kiểm tra: 4¹¹ mod 23 = 1.
+Tham số: p = 23, q = 11 (22 chia hết cho 11), h = 2 nên g = 2² = 4. Kiểm tra: 4¹¹ mod 23 = 1.
 
 Khóa: x = 3, suy ra y = 4³ mod 23 = 64 mod 23 = **18**.
 
@@ -315,7 +318,7 @@ ONLINE (khi thông điệp m đến):
 | `stop_background()` | dừng thread nền |
 | `__len__` | số bộ còn trong pool |
 
-**Bảo đảm an toàn khi chạy nhiều thread:** `popleft()` nằm trong `with self._lock`, nên hai thread không bao giờ lấy được cùng một bộ. Test `test_no_k_issued_twice_under_threads` kiểm chứng điều này.
+**Bảo đảm khi nhiều thread rút từ pool:** `popleft()` nằm trong `with self._lock`, nên mỗi phần tử hàng đợi chỉ được cấp một lần. Test `test_no_k_issued_twice_under_threads` kiểm tra không có k trùng trong lần chạy với 2000 bộ. Việc sinh k vẫn là ngẫu nhiên, không có cơ chế loại trùng toàn cục, nên test không chứng minh k không bao giờ lặp giữa mọi lần sinh.
 
 **Fallback:** khi `take()` trả về `None`, `PoolSigner` gọi thẳng `filler.fresh_triple()` và tăng bộ đếm `fallbacks`. Nhờ vậy phép ký không bao giờ bị chặn, và benchmark biết được có bao nhiêu chữ ký đã phải tính trực tiếp.
 
@@ -393,7 +396,7 @@ nếu u ≠ 0:  result = result · G[u]
 
 **So sánh window và comb:** ở cùng giá trị w = h, comb chậm hơn window khoảng 2 lần (vì có thêm phép bình phương), nhưng bảng nhỏ hơn ⌈N/w⌉ lần. Ở cùng tốc độ, comb tiết kiệm bộ nhớ hơn (mục 9.3).
 
-Cả hai lớp đều có hai thuộc tính `entries` (số phần tử bảng) và `table_bytes` (tổng số byte của các phần tử), dùng trong E3.
+Cả hai lớp đều có hai thuộc tính `entries` (số phần tử bảng) và `table_bytes` (tổng số byte biểu diễn các số nguyên), dùng trong E3. `table_bytes` không tính phần bộ nhớ quản lý của đối tượng `int` và `list` trong Python, nên không phải tổng RAM thực tế.
 
 ### 5.4 V4 — Pool kết hợp
 
@@ -512,15 +515,15 @@ Các hàm khác: `write_csv(name, rows)` ghi kết quả ra `bench/results/`; `e
 
 Mọi thí nghiệm chạy ở cả hai mức 2048 và 3072. `W_BEST = 8` là giá trị w/h dùng cho V2, V3, V4.
 
-**Đo trên chữ ký thật:** hàm `checked(signer, key)` bọc signer lại, để mỗi lần đo ký một thông điệp khác nhau và lưu chữ ký. Sau khi đo, `verify_all` lấy mẫu khoảng 200 chữ ký để xác minh lại. Nếu có chữ ký sai, benchmark dừng ngay. Nhờ vậy không thể vô tình đo nhanh một cài đặt sai.
+**Đo trên chữ ký thật:** ở E1, hàm `checked(signer, key)` bọc signer lại, để mỗi lần đo ký một thông điệp khác nhau và lưu chữ ký. Sau khi đo, `verify_all` lấy mẫu khoảng 200 chữ ký để xác minh lại; benchmark dừng nếu mẫu có chữ ký sai. E3 đối chiếu một giá trị k với `pow()` cho mỗi bảng; E5 xác minh mẫu của đợt cuối. E4 đo ký/xác minh trên cùng một thông điệp, không dùng wrapper `checked`. Các kiểm tra mẫu bổ sung cho bộ test, không thay thế việc kiểm tra mọi kết quả.
 
 | Thí nghiệm | Hàm | Đo gì | Cách đo | File CSV |
 | --- | --- | --- | --- | --- |
 | E1 | `e1()` | độ trễ ký online của V0 (tự cài), V0 (`pow`), V2, V3, V1, V4 | pool chứa 8000 bộ, nhiều hơn 50 + 5×1000 lần ký, nên chắc chắn không lần nào rơi về fallback (có `assert fallbacks == 0`) | `e1_sign_latency.csv` |
 | E2 | `e2()` | chi phí lấp pool với 3 cách lấp × kích thước 100 / 1000 / 10 000 | lấy median của 3 lần chạy (1 lần với pool 10 000); thêm phép đo riêng phần nghịch đảo: Euclid từng số so với hàng loạt, trên 1000 số | `e2_pool_fill.csv` |
 | E3 | `e3()` | thời gian g^k và dung lượng bảng của window và comb với w = 2…8 | so với square-and-multiply và `pow()`; mỗi bảng được kiểm tra một lần với `pow` trước khi đo | `e3_fixed_base.csv` |
-| E4 | `e4()` | DSA (V0, V2, V4, xác minh) so với RSA (R0, R1, xác minh), sinh khóa, kích thước | đo cả với `modexp` tự cài và với `pow()` C; sinh khóa RSA lặp 10 lần (mức 2048) và 4 lần (mức 3072), lấy median | `e4_dsa_vs_rsa.csv` |
-| E5 | `e5()` | thông lượng khi 2000 yêu cầu ký đến cùng lúc | 5 trường hợp: V0, V3 không pool, V4 pool đầy, pool một nửa, pool rỗng; mỗi trường hợp chạy 3 lần, lấy median | `e5_burst.csv` |
+| E4 | `e4()` | DSA (V0, V2, V4, xác minh) so với RSA (R0, R1, xác minh), sinh khóa, kích thước | hai lượt `modexp` tự cài và `pow()` C áp dụng cho DSA V0, DSA xác minh và RSA; DSA V2/V4 giữ nguyên engine fixed-base. Sinh khóa RSA lặp 10 lần (mức 2048) và 4 lần (mức 3072), lấy phần tử giữa phía trên sau khi sắp xếp | `e4_dsa_vs_rsa.csv` |
+| E5 | `e5()` | thông lượng xử lý tuần tự một đợt 2000 yêu cầu ký | 5 trường hợp: V0, V3 không pool, V4 pool đầy, pool một nửa, pool rỗng; mỗi trường hợp chạy 3 lần, lấy median | `e5_burst.csv` |
 
 ### 8.3 Biểu đồ — `bench/plots.py`
 
@@ -666,7 +669,7 @@ Bảng fixed-base được tra theo các chữ số của k, nên địa chỉ t
 
 ### 10.6 Tình trạng chuẩn
 
-FIPS 186-5 (2023) không còn chấp thuận DSA để tạo chữ ký mới, chỉ giữ lại để xác minh chữ ký cũ. Tuy nhiên ECDSA và Schnorr/EdDSA có cùng cấu trúc (r chỉ phụ thuộc k·G, không phụ thuộc thông điệp), nên mọi kỹ thuật trong đề tài áp dụng trực tiếp cho các thuật toán này.
+Theo [FIPS 186-5](https://doi.org/10.6028/NIST.FIPS.186-5), DSA chỉ được giữ lại để xác minh chữ ký đã có, không tạo chữ ký mới. Ý tưởng bảng fixed-base có thể chuyển sang phép nhân điểm của ECDSA/Schnorr, nhưng pool nonce cần thiết kế riêng theo lược đồ. ECDSA tất định theo [RFC 6979, mục 3.2](https://www.rfc-editor.org/rfc/rfc6979.html#section-3.2) và EdDSA theo [RFC 8032, mục 5.1.6](https://www.rfc-editor.org/rfc/rfc8032.html#section-5.1.6) sinh nonce từ thông điệp, nên không thể chuẩn bị nguyên xi pool nonce độc lập thông điệp như trong repo. Schnorr/EdDSA cũng không dùng công thức nghịch đảo nonce như DSA.
 
 ---
 
